@@ -11,7 +11,8 @@ where
 import Graphics.Vty.Output
 import Graphics.Vty.Platform.Unix.Input.Mouse
 import Graphics.Vty.Platform.Unix.Input.Focus
-import Graphics.Vty.Attributes.Color (ColorMode)
+import Graphics.Vty.Attributes.Color (Color(..), ColorMode)
+import Graphics.Vty.Attributes.Color240 (color240CodeToRGB)
 import qualified Graphics.Vty.Platform.Unix.Output.TerminfoBased as TerminfoBased
 
 import Blaze.ByteString.Builder (writeToByteString)
@@ -24,6 +25,7 @@ import Foreign.Ptr (castPtr)
 import Control.Monad (void, when)
 import Control.Monad.Trans
 import Data.Char (toLower, isPrint, showLitChar)
+import Data.Word (Word8)
 import Data.IORef
 
 import System.Posix.IO (fdWriteBuf)
@@ -31,7 +33,8 @@ import System.Posix.Types (ByteCount, Fd)
 import System.Posix.Env (getEnv)
 
 import Data.List (isInfixOf)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
+import Text.Printf (printf)
 
 #if !MIN_VERSION_base(4,11,0)
 import Data.Monoid ((<>))
@@ -100,6 +103,8 @@ reserveTerminal variant outFd colorMode = liftIO $ do
              , getModeStatus = xtermGetMode
              , setMode = xtermSetMode t'
              , setOutputWindowTitle = setWindowTitle t
+             , setBackgroundColor = \c -> liftIO $ flushedPut $ BS8.pack $ "\ESC]11;" <> colorHexString c <> "\a"
+             , resetBackgroundColor = liftIO $ flushedPut $ BS8.pack "\ESC]111\a"
              }
     return t'
 
@@ -150,3 +155,13 @@ setWindowTitle o title = do
                        | otherwise = [c]
     let buf = BS8.pack $ "\ESC]2;" <> sanitize title <> "\007"
     outputByteBuffer o buf
+
+hexString :: (Word8, Word8, Word8) -> String
+hexString (r, g, b) = printf "#%02x%02x%02x" r g b
+
+colorHexString :: Color -> String
+colorHexString (Color240 c) = hexString $ (\(r, b, g) -> (fromIntegral r, fromIntegral g, fromIntegral b)) $ fromJust $ color240CodeToRGB c
+colorHexString (RGBColor r g b) = hexString (r, g, b)
+-- Most terminal emulator set the ISO colors to some unknown value - it is probably an error to use this
+-- function with ISO colors.
+colorHexString (ISOColor _) = error "There is not standard RGB value for the ISO terminal colors"

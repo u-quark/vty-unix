@@ -199,6 +199,8 @@ reserveTerminal termName outFd colorMode = do
             -- reference. I was having issues tho.
             , mkDisplayContext = (`terminfoDisplayContext` terminfoCaps)
             , setOutputWindowTitle = const $ return ()
+            , setBackgroundColor = const $ return ()
+            , resetBackgroundColor = return ()
             }
         sendCap s = sendCapToTerminal t (s terminfoCaps)
         maybeSendCap s = when (isJust $ s terminfoCaps) . sendCap (fromJust . s)
